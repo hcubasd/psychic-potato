@@ -1,0 +1,24 @@
+{
+	"name": "psychic-potato",
+	"version": "0.0.0",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/hcubasd/psychic-potato"
+	},
+	"scripts": {
+		"test": "vitest --environment jsdom",
+		"build": "tsc --rootDir src --outDir dist"
+	},
+	"files": [
+		"dist"
+	],
+	"devDependencies": {
+		"@tsconfig/node22": "^22.0.5",
+		"jsdom": "^26.1.0",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.7"
+	}
+}

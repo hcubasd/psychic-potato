@@ -1,0 +1,17 @@
+{
+	"extends": "@tsconfig/node22/tsconfig.json",
+	"compilerOptions": {
+		"preserveConstEnums": true,
+		"declaration": true,
+		"lib": [
+			"ES2024",
+			"DOM"
+		]
+	},
+	"include": [
+		"src/**/*"
+	],
+	"exclude": [
+		"**/*.spec.ts"
+	]
+}

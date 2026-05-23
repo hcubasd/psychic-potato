@@ -1,0 +1,17 @@
+name: Integration
+on:
+  push:
+    branches:
+      - "**"
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.0.0, 23.0.0, 24.0.0]
+    container: node:${{ matrix.node-version }}
+    steps:
+      - uses: actions/checkout@v6
+      - run: npm ci
+      - run: npm test -- --run
+      - run: npm run build
