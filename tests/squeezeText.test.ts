@@ -51,7 +51,7 @@ describe("squeezeText", () => {
 		expect(() => squeezeText([div])).toThrow(/more than one span/);
 	});
 
-	it("finds a pair in a nested div structure", () => {
+	it("finds a pair in a nested div structure and sets font on it", () => {
 		const root = document.createElement("div");
 		const inner = document.createElement("div");
 		const span = document.createElement("span");
@@ -64,10 +64,17 @@ describe("squeezeText", () => {
 		inner.getBoundingClientRect = () => new DOMRect(0, 0, 100, 40);
 		span.getBoundingClientRect = () => {
 			const fs = parseFloat(getComputedStyle(span).fontSize) || BODY_FONT_SIZE;
-			return new DOMRect(0, 0, WIDTH_FACTOR * fs * 2, HEIGHT_FACTOR * fs);
+			const spanW = WIDTH_FACTOR * fs * 2;
+			const spanH = HEIGHT_FACTOR * fs;
+			return new DOMRect((100 - spanW) / 2, (40 - spanH) / 2, spanW, spanH);
 		};
 
-		expect(() => squeezeText([root])).not.toThrow();
+		squeezeText([root]);
+
+		expect(inner.style.fontSize).not.toBe("");
+		expect(span.style.fontSize).not.toBe("");
+		expect(measuredWidth(span)).toBeLessThanOrEqual(100 + 1);
+		expect(measuredHeight(span)).toBeLessThanOrEqual(40 + 1);
 	});
 
 	it("throws when all spans have no renderable size", () => {
@@ -96,23 +103,35 @@ describe("squeezeText", () => {
 
 	it("grows font to fill a stable container", () => {
 		const pair = createPair({ text: "January", divWidth: 132, divHeight: 64 });
+		const limitingScalar = Math.min(
+			pair.contentWidth / (WIDTH_FACTOR * BODY_FONT_SIZE * "January".length),
+			pair.contentHeight / (HEIGHT_FACTOR * BODY_FONT_SIZE),
+		);
 
 		squeezeText([pair.div]);
 
-		expect(readFontSize(pair.span)).toBeGreaterThan(BODY_FONT_SIZE);
+		const scalar = readFontSize(pair.span) / BODY_FONT_SIZE;
+		expect(scalar).toBeCloseTo(limitingScalar, 1);
+		expect(readFontSize(pair.div)).toBeCloseTo(readFontSize(pair.span), 4);
 		expect(measuredWidth(pair.span)).toBeLessThanOrEqual(pair.contentWidth + 1);
 		expect(measuredHeight(pair.span)).toBeLessThanOrEqual(pair.contentHeight + 1);
 	});
 
 	it("shrinks from an oversized initial font", () => {
 		const pair = createPair({ text: "September", divWidth: 92, divHeight: 40 });
+		const limitingScalar = Math.min(
+			pair.contentWidth / (WIDTH_FACTOR * BODY_FONT_SIZE * "September".length),
+			pair.contentHeight / (HEIGHT_FACTOR * BODY_FONT_SIZE),
+		);
 
 		pair.div.style.fontSize = "48px";
 		pair.span.style.fontSize = "48px";
 
 		squeezeText([pair.div]);
 
-		expect(readFontSize(pair.span)).toBeLessThan(48);
+		const scalar = readFontSize(pair.span) / BODY_FONT_SIZE;
+		expect(scalar).toBeCloseTo(limitingScalar, 1);
+		expect(readFontSize(pair.div)).toBeCloseTo(readFontSize(pair.span), 4);
 		expect(measuredWidth(pair.span)).toBeLessThanOrEqual(pair.contentWidth + 1);
 	});
 
@@ -232,11 +251,16 @@ function createPair(config: PairConfig): PairFixture {
 			return new DOMRect(divRect.left + inset, divRect.top + inset, 0, 0);
 		}
 
+		const spanW = WIDTH_FACTOR * fs * text.length;
+		const spanH = HEIGHT_FACTOR * fs;
+		const contentW = divRect.width - 2 * inset;
+		const contentH = divRect.height - 2 * inset;
+
 		return new DOMRect(
-			divRect.left + inset,
-			divRect.top + inset,
-			WIDTH_FACTOR * fs * text.length,
-			HEIGHT_FACTOR * fs,
+			divRect.left + inset + (contentW - spanW) / 2,
+			divRect.top + inset + (contentH - spanH) / 2,
+			spanW,
+			spanH,
 		);
 	};
 
