@@ -1,6 +1,16 @@
 {
 	"name": "psychic-potato",
 	"version": "0.0.0",
+	"description": "Fit text inside containers by finding the largest font size where every span stays within its parent div.",
+	"keywords": [
+		"text-fitting",
+		"font-size",
+		"responsive",
+		"dom",
+		"typography"
+	],
+	"license": "MIT",
+	"homepage": "https://github.com/hcubasd/psychic-potato#readme",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
