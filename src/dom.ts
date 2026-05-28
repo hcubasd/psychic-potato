@@ -1,4 +1,11 @@
-const STABILITY_THRESHOLD_PX = 1;
+function stabilityThresholdPx(): number {
+	const dpr =
+		typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+	// Tolerate sub-pixel jitter from device-pixel snapping. The snapping grid
+	// grows with display scaling, so scale the tolerance with dpr rather than
+	// pinning it to a fixed CSS pixel.
+	return Math.max(1, Math.ceil(dpr));
+}
 
 export type Pair = {
 	div: HTMLDivElement;
@@ -103,19 +110,20 @@ export function restoreFontSizes(pairs: Pair[]): void {
 }
 
 export function checkStability(pairs: Pair[]): void {
+	const threshold = stabilityThresholdPx();
 	for (const pair of pairs) {
 		const rect = pair.div.getBoundingClientRect();
 
 		if (
 			pair.stableWidth !== null &&
-			Math.abs(rect.width - pair.stableWidth) > STABILITY_THRESHOLD_PX
+			Math.abs(rect.width - pair.stableWidth) > threshold
 		) {
 			pair.stableWidth = null;
 		}
 
 		if (
 			pair.stableHeight !== null &&
-			Math.abs(rect.height - pair.stableHeight) > STABILITY_THRESHOLD_PX
+			Math.abs(rect.height - pair.stableHeight) > threshold
 		) {
 			pair.stableHeight = null;
 		}
