@@ -1,6 +1,15 @@
 # psychic-potato
 
-A single browser function that fits text inside containers by finding the largest font size where every span stays within its parent div.
+Two browser functions for building simple, self-contained UIs from nested
+`div`s of just two kinds:
+
+- **background** (`class="bg"`) — containers that nest to any depth; their
+  nesting depth drives a perceptually-even color ramp
+- **foreground** (`class="fg"`) — leaf containers holding the actual UI content
+  (text, buttons, whatever); their text is auto-sized to fit
+
+`colorBg` paints the background layers; `squeezeFg` fits the foreground text.
+They are independent — call either, both, or neither.
 
 ## Install
 
@@ -8,63 +17,98 @@ A single browser function that fits text inside containers by finding the larges
 npm install psychic-potato
 ```
 
+Colors come from [miniature-waffle](https://github.com/hcubasd/miniature-waffle),
+which is pulled in automatically.
+
 ## API
 
 ```ts
-import { squeezeText } from "psychic-potato";
-
-squeezeText(roots: HTMLDivElement[]): void
+import { colorBg, squeezeFg } from "psychic-potato";
 ```
 
-Pass an array of root divs. The function walks each root recursively, finds every div that directly contains a span, and adjusts a single shared font size so all spans fit inside their containers.
+---
+
+### `colorBg(root, config?)`
 
 ```ts
-const roots = Array.from(document.querySelectorAll<HTMLDivElement>(".label-container"));
-squeezeText(roots);
+colorBg(root: HTMLDivElement, config?: { startL?: number; endL?: number }): void
 ```
 
-The font size is set as an inline style on both the container div and its span. Call `squeezeText` again on resize.
+Walks `root`, finds every `div.bg`, and sets each one's `backgroundColor` from a
+gray ramp keyed to its nesting depth. The outermost background layer gets
+`startL`, the innermost gets `endL`, and miniature-waffle fills the
+evenly-spaced CIE Lab grays in between. Siblings at the same depth get the same
+color. Non-`bg` divs don't count toward depth.
 
-## DOM structure
-
-Each container div must have exactly one direct span child:
-
-```html
-<div class="label-container">
-  <span>Some text</span>
-</div>
-```
-
-Container divs can be anywhere in the subtree of a root — they do not have to be the root itself:
+- `startL` — lightness of the outermost layer, `[0, 100]`, default `0`
+- `endL` — lightness of the innermost layer, `[0, 100]`, default `100`
 
 ```html
-<div id="root">
-  <div><span>January</span></div>
-  <div><span>February</span></div>
+<div class="bg">           <!-- depth 0 → startL -->
+  <div class="bg">         <!-- depth 1 -->
+    <div class="bg">…</div> <!-- depth 2 → endL -->
+  </div>
 </div>
 ```
 
 ```ts
-squeezeText([document.getElementById("root")]);
+colorBg(document.getElementById("root"));              // 0 → 100
+colorBg(document.getElementById("root"), { startL: 15, endL: 85 });
 ```
 
-## Behaviour
+---
 
-- Measures `getBoundingClientRect()` on divs and spans
-- Fitting target is each div's content box (padding and borders reduce usable space)
-- A single font size scalar is applied to all container divs and their spans
-- The binding constraint is the pair whose span is closest to or furthest past its edge — all other pairs get the same scalar and will fit with slack
-- Dimensions that change with font size are excluded from fitting; if all dimensions of a div become unstable the function throws
-- Font sizes are restored to their original values if the function throws
+### `squeezeFg(root)`
+
+```ts
+squeezeFg(root: HTMLDivElement): void
+```
+
+Walks `root`, finds every `div.fg`, and applies a single shared font size — the
+largest at which every foreground's content fits inside its container. Set the
+font on a `fg` and it cascades to everything inside, so the content scales as a
+whole. Call again on resize.
+
+Each `fg` must contain **exactly one direct child div** — the content proxy. Put
+whatever you want inside it; it sizes to its content and is measured against the
+`fg`'s content box.
+
+```html
+<div class="fg">     <!-- container: sized by the layout -->
+  <div>              <!-- content proxy: sizes to its content -->
+    <span>January</span>
+  </div>
+</div>
+```
+
+```ts
+squeezeFg(document.getElementById("root"));
+```
+
+## How `squeezeFg` fits
+
+- Measures `getBoundingClientRect()` of each content div against its `fg`'s
+  content box (padding and borders reduce the usable space).
+- One shared font size is applied to all `fg`s; the most-constrained foreground
+  determines it, so the rest fit with slack.
+- An **exponential sweep** (≤16 steps) brackets the answer — it grows the font
+  while everything fits and shrinks it while anything overflows, until the fit
+  state flips.
+- A **binary search** refines within the bracket. The sampled font size is
+  tracked with a running mean and variance (Welford); the search stops once the
+  standard deviation falls below a pixel. The largest font that fit is applied.
+- An axis where the `fg` grows with its content (hugs it) never triggers a
+  crossing, so the fixed axis constrains the fit on its own — no configuration
+  needed.
+- Font sizes are restored to their original inline values if the function throws.
 
 ## Throws
 
-| Condition | Message |
-|---|---|
-| Empty roots array | `squeezeText requires at least one root div.` |
-| Root not connected to document | `squeezeText requires div N to be connected.` |
-| No div-span pair found in any root | `squeezeText: no div containing a span was found.` |
-| A div has more than one span | `squeezeText: a div contains more than one span.` |
-| No span renders measurable text | `squeezeText requires at least one span to render measurable text.` |
-| A div loses all stable dimensions | `squeezeText: a div lost all stable dimensions.` |
-| Sweep cannot bracket a fit | `squeezeText: could not bracket a fit during the sweep.` |
+| Function | Condition | Message |
+|---|---|---|
+| `colorBg` | No `bg` div found | `colorBg: no element with class "bg" was found.` |
+| `squeezeFg` | Root not connected | `squeezeFg requires a connected root div.` |
+| `squeezeFg` | No `fg` div found | `squeezeFg: no element with class "fg" was found.` |
+| `squeezeFg` | An `fg` lacks exactly one child div | `squeezeFg: each fg div must contain exactly one direct child div.` |
+| `squeezeFg` | No content renders | `squeezeFg requires at least one fg child with measurable content.` |
+| `squeezeFg` | Sweep cannot bracket a fit | `squeezeFg: could not bracket a fit during the sweep.` |

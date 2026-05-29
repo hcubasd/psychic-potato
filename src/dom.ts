@@ -1,20 +1,8 @@
-function stabilityThresholdPx(): number {
-	const dpr =
-		typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-	// Tolerate sub-pixel jitter from device-pixel snapping. The snapping grid
-	// grows with display scaling, so scale the tolerance with dpr rather than
-	// pinning it to a fixed CSS pixel.
-	return Math.max(1, Math.ceil(dpr));
-}
-
 export type Pair = {
-	div: HTMLDivElement;
-	span: HTMLSpanElement;
-	savedDivFont: string;
-	savedSpanFont: string;
+	fg: HTMLDivElement;
+	child: HTMLDivElement;
 	insets: { left: number; right: number; top: number; bottom: number };
-	stableWidth: number | null;
-	stableHeight: number | null;
+	savedFont: string;
 };
 
 function parsePx(value: string): number {
@@ -27,155 +15,98 @@ export function getBodyFontSize(): number {
 	return Number.isFinite(raw) && raw > 0 ? raw : 16;
 }
 
-export function collectPairs(roots: HTMLDivElement[]): Pair[] {
-	if (roots.length === 0) {
-		throw new Error("squeezeText requires at least one root div.");
+export function collectByClass(
+	root: HTMLDivElement,
+	className: string,
+): HTMLDivElement[] {
+	const out: HTMLDivElement[] = [];
+
+	const visit = (el: Element): void => {
+		if (el.tagName === "DIV" && el.classList.contains(className)) {
+			out.push(el as HTMLDivElement);
+		}
+		for (const child of el.children) visit(child);
+	};
+
+	visit(root);
+	return out;
+}
+
+export function collectPairs(root: HTMLDivElement): Pair[] {
+	if (!root.isConnected) {
+		throw new Error("squeezeFg requires a connected root div.");
+	}
+
+	const fgs = collectByClass(root, "fg");
+	if (fgs.length === 0) {
+		throw new Error('squeezeFg: no element with class "fg" was found.');
 	}
 
 	const pairs: Pair[] = [];
 
-	for (let i = 0; i < roots.length; i++) {
-		const root = roots[i];
-		if (!root.isConnected) {
-			throw new Error(`squeezeText requires div ${i} to be connected.`);
+	for (const fg of fgs) {
+		const childDivs: HTMLDivElement[] = [];
+		for (const child of fg.children) {
+			if (child.tagName === "DIV") childDivs.push(child as HTMLDivElement);
 		}
-		walkDiv(root, pairs);
-	}
 
-	if (pairs.length === 0) {
-		throw new Error("squeezeText: no div containing a span was found.");
-	}
+		if (childDivs.length !== 1) {
+			throw new Error(
+				"squeezeFg: each fg div must contain exactly one direct child div.",
+			);
+		}
 
-	return pairs;
-}
-
-function walkDiv(div: HTMLDivElement, pairs: Pair[]): void {
-	const directSpans: HTMLSpanElement[] = [];
-	const childDivs: HTMLDivElement[] = [];
-
-	for (const child of div.children) {
-		if (child.tagName === "SPAN") directSpans.push(child as HTMLSpanElement);
-		else if (child.tagName === "DIV") childDivs.push(child as HTMLDivElement);
-	}
-
-	if (directSpans.length > 1) {
-		throw new Error("squeezeText: a div contains more than one span.");
-	}
-
-	if (directSpans.length === 1) {
-		const span = directSpans[0];
-		const style = getComputedStyle(div);
+		const style = getComputedStyle(fg);
 		pairs.push({
-			div,
-			span,
-			savedDivFont: div.style.fontSize,
-			savedSpanFont: span.style.fontSize,
+			fg,
+			child: childDivs[0],
 			insets: {
 				left: parsePx(style.paddingLeft) + parsePx(style.borderLeftWidth),
 				right: parsePx(style.paddingRight) + parsePx(style.borderRightWidth),
 				top: parsePx(style.paddingTop) + parsePx(style.borderTopWidth),
 				bottom: parsePx(style.paddingBottom) + parsePx(style.borderBottomWidth),
 			},
-			stableWidth: null,
-			stableHeight: null,
+			savedFont: fg.style.fontSize,
 		});
-		return;
 	}
 
-	for (const child of childDivs) {
-		walkDiv(child, pairs);
-	}
+	return pairs;
 }
 
-export function recordDims(pairs: Pair[]): void {
+export function setFont(pairs: Pair[], px: number): void {
+	for (const { fg } of pairs) fg.style.fontSize = `${px}px`;
+}
+
+export function restoreFont(pairs: Pair[]): void {
+	for (const { fg, savedFont } of pairs) fg.style.fontSize = savedFont;
+}
+
+// Signed distance from the child's box to the fg content box, taking the
+// tightest of the two axes. Negative means the child overflows; >= 0 means it
+// fits. An axis where the fg hugs its child sits at ~0 and never drives the
+// crossing, so the fixed axis wins naturally — no stability tracking needed.
+export function measureGap(pair: Pair): number {
+	const fg = pair.fg.getBoundingClientRect();
+	const child = pair.child.getBoundingClientRect();
+	const { insets } = pair;
+
+	const widthGap = Math.min(
+		child.left - (fg.left + insets.left),
+		fg.right - insets.right - child.right,
+	);
+	const heightGap = Math.min(
+		child.top - (fg.top + insets.top),
+		fg.bottom - insets.bottom - child.bottom,
+	);
+
+	return Math.min(widthGap, heightGap);
+}
+
+export function minGap(pairs: Pair[]): number {
+	let min = Infinity;
 	for (const pair of pairs) {
-		const rect = pair.div.getBoundingClientRect();
-		pair.stableWidth = rect.width;
-		pair.stableHeight = rect.height;
+		const gap = measureGap(pair);
+		if (gap < min) min = gap;
 	}
-}
-
-export function setFontSizes(pairs: Pair[], px: number): void {
-	for (const { div, span } of pairs) {
-		div.style.fontSize = `${px}px`;
-		span.style.fontSize = `${px}px`;
-	}
-}
-
-export function restoreFontSizes(pairs: Pair[]): void {
-	for (const { div, span, savedDivFont, savedSpanFont } of pairs) {
-		div.style.fontSize = savedDivFont;
-		span.style.fontSize = savedSpanFont;
-	}
-}
-
-export function checkStability(pairs: Pair[]): void {
-	const threshold = stabilityThresholdPx();
-	for (const pair of pairs) {
-		const rect = pair.div.getBoundingClientRect();
-
-		if (
-			pair.stableWidth !== null &&
-			Math.abs(rect.width - pair.stableWidth) > threshold
-		) {
-			pair.stableWidth = null;
-		}
-
-		if (
-			pair.stableHeight !== null &&
-			Math.abs(rect.height - pair.stableHeight) > threshold
-		) {
-			pair.stableHeight = null;
-		}
-
-		if (pair.stableWidth === null && pair.stableHeight === null) {
-			throw new Error(
-				"squeezeText: a div lost all stable dimensions.",
-			);
-		}
-	}
-}
-
-export function measureSpanGap(pair: Pair): number {
-	const divRect = pair.div.getBoundingClientRect();
-	const spanRect = pair.span.getBoundingClientRect();
-	const { insets, stableWidth, stableHeight } = pair;
-	let minGap = Infinity;
-
-	if (stableWidth !== null) {
-		minGap = Math.min(
-			minGap,
-			spanRect.left - (divRect.left + insets.left),
-			divRect.right - insets.right - spanRect.right,
-		);
-	}
-
-	if (stableHeight !== null) {
-		minGap = Math.min(
-			minGap,
-			spanRect.top - (divRect.top + insets.top),
-			divRect.bottom - insets.bottom - spanRect.bottom,
-		);
-	}
-
-	return minGap;
-}
-
-export function allPairsFit(pairs: Pair[]): boolean {
-	return pairs.every((pair) => measureSpanGap(pair) >= 0);
-}
-
-export function findBoundingPair(pairs: Pair[]): Pair {
-	let candidate = pairs[0];
-	let minGap = measureSpanGap(candidate);
-
-	for (let i = 1; i < pairs.length; i++) {
-		const gap = measureSpanGap(pairs[i]);
-		if (gap < minGap) {
-			minGap = gap;
-			candidate = pairs[i];
-		}
-	}
-
-	return candidate;
+	return min;
 }

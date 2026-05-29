@@ -1,114 +1,100 @@
 import {
-	allPairsFit,
-	checkStability,
 	collectPairs,
-	findBoundingPair,
 	getBodyFontSize,
-	measureSpanGap,
-	recordDims,
-	restoreFontSizes,
-	setFontSizes,
+	minGap,
 	type Pair,
+	restoreFont,
+	setFont,
 } from "./dom.js";
 
-const MAX_SWEEP_STEPS = 32;
-const MAX_BINARY_STEPS = 32;
-const MIN_SCALAR = 1 / 2 ** 32;
-const EPSILON_START_PX = 1;
+const MAX_SWEEP_STEPS = 16;
+const MAX_BINARY_STEPS = 1024;
+const CONVERGENCE_STD_PX = 1;
 
-type SweepResult = {
-	candidate: Pair;
-	inside: number;
-	outside: number;
-};
+type Bracket = { inside: number; outside: number };
 
-export function squeezeText(roots: HTMLDivElement[]): void {
-	const pairs = collectPairs(roots);
-	const bodyFs = getBodyFontSize();
+export function squeezeFg(root: HTMLDivElement): void {
+	const pairs = collectPairs(root);
+	const seed = getBodyFontSize();
 
 	try {
-		recordDims(pairs);
-		setFontSizes(pairs, bodyFs);
-		checkStability(pairs);
+		setFont(pairs, seed);
+		validateRenders(pairs);
 
-		validateSpansRender(pairs);
-
-		const { candidate, inside, outside } = runSweep(pairs, bodyFs);
-		const bestScalar = runBinarySearch(candidate, pairs, bodyFs, inside, outside);
-		setFontSizes(pairs, bodyFs * bestScalar);
+		const { inside, outside } = sweep(pairs, seed);
+		const best = refine(pairs, inside, outside);
+		setFont(pairs, best);
 	} catch (err) {
-		restoreFontSizes(pairs);
+		restoreFont(pairs);
 		throw err;
 	}
 }
 
-function validateSpansRender(pairs: Pair[]): void {
-	const anyRenders = pairs.some(({ span }) => {
-		const rect = span.getBoundingClientRect();
+function validateRenders(pairs: Pair[]): void {
+	const anyRenders = pairs.some(({ child }) => {
+		const rect = child.getBoundingClientRect();
 		return rect.width > 0 || rect.height > 0;
 	});
 	if (!anyRenders) {
 		throw new Error(
-			"squeezeText requires at least one span to render measurable text.",
+			"squeezeFg requires at least one fg child with measurable content.",
 		);
 	}
 }
 
-function runSweep(pairs: Pair[], bodyFs: number): SweepResult {
-	let scalar = 1;
-	let fits = allPairsFit(pairs);
+// Exponential search: grow while everything fits, shrink while anything
+// overflows, until the fit state flips. Brackets the answer between the last
+// fitting font (`inside`) and the first overflowing font (`outside`).
+function sweep(pairs: Pair[], seed: number): Bracket {
+	let font = seed;
+	let fits = minGap(pairs) >= 0;
 
 	for (let step = 0; step < MAX_SWEEP_STEPS; step++) {
-		const nextScalar = fits ? scalar * 2 : scalar / 2;
-
-		if (nextScalar < MIN_SCALAR) {
-			throw new Error("squeezeText: could not find a fitting font size.");
-		}
-
-		setFontSizes(pairs, bodyFs * nextScalar);
-		checkStability(pairs);
-
-		const nextFits = allPairsFit(pairs);
+		const next = fits ? font * 2 : font / 2;
+		setFont(pairs, next);
+		const nextFits = minGap(pairs) >= 0;
 
 		if (fits !== nextFits) {
-			const candidate = findBoundingPair(pairs);
 			return fits
-				? { candidate, inside: scalar, outside: nextScalar }
-				: { candidate, inside: nextScalar, outside: scalar };
+				? { inside: font, outside: next }
+				: { inside: next, outside: font };
 		}
 
-		scalar = nextScalar;
+		font = next;
 		fits = nextFits;
 	}
 
-	throw new Error("squeezeText: could not bracket a fit during the sweep.");
+	throw new Error("squeezeFg: could not bracket a fit during the sweep.");
 }
 
-function runBinarySearch(
-	candidate: Pair,
-	pairs: Pair[],
-	bodyFs: number,
-	inside: number,
-	outside: number,
-): number {
-	let bestInside = inside;
-	let threshold = EPSILON_START_PX;
+// Binary search refinement. We track the running mean and variance (Welford) of
+// the sampled font size and stop once its standard deviation drops below a pixel
+// — at that point the search has exhausted any meaningful resolution. We apply
+// `inside`, the largest font that still fit. By the time the std-dev stop fires
+// the bracket has halved to a sliver (it shrinks exponentially while the std-dev
+// only falls like 1/sqrt(n)), so inside sits within a hair of the true boundary
+// on the safe side — a free fit guarantee since we don't control the fg's
+// overflow behavior.
+function refine(pairs: Pair[], inside: number, outside: number): number {
+	let mean = 0;
+	let m2 = 0;
+	let n = 0;
 
 	for (let step = 0; step < MAX_BINARY_STEPS; step++) {
 		const mid = (inside + outside) / 2;
-		setFontSizes(pairs, bodyFs * mid);
-		const gap = measureSpanGap(candidate);
+		setFont(pairs, mid);
+		const gap = minGap(pairs);
 
-		if (gap >= 0) {
-			inside = mid;
-			bestInside = mid;
-			if (gap <= threshold) break;
-		} else {
-			outside = mid;
-		}
+		n += 1;
+		const delta = mid - mean;
+		mean += delta / n;
+		m2 += delta * (mid - mean);
 
-		threshold += 1;
+		if (gap >= 0) inside = mid;
+		else outside = mid;
+
+		if (n >= 2 && Math.sqrt(m2 / n) < CONVERGENCE_STD_PX) break;
 	}
 
-	return bestInside;
+	return inside;
 }

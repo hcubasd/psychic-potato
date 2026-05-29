@@ -1,13 +1,16 @@
 {
 	"name": "psychic-potato",
 	"version": "0.0.0",
-	"description": "Fit text inside containers by finding the largest font size where every span stays within its parent div.",
+	"description": "Depth-colored background panels and auto-fitted foreground text for simple self-contained UIs.",
 	"keywords": [
 		"text-fitting",
 		"font-size",
 		"responsive",
 		"dom",
-		"typography"
+		"typography",
+		"color",
+		"panels",
+		"ui"
 	],
 	"license": "MIT",
 	"homepage": "https://github.com/hcubasd/psychic-potato#readme",
@@ -28,6 +31,9 @@
 	"files": [
 		"dist"
 	],
+	"dependencies": {
+		"miniature-waffle": "^0.1.7"
+	},
 	"devDependencies": {
 		"@tsconfig/node23": "^23.0.4",
 		"jsdom": "^26.1.0",
