@@ -31,8 +31,8 @@ export function squeezeFg(root: HTMLDivElement): void {
 }
 
 function validateRenders(pairs: Pair[]): void {
-	const anyRenders = pairs.some(({ child }) => {
-		const rect = child.getBoundingClientRect();
+	const anyRenders = pairs.some(({ fg }) => {
+		const rect = fg.getBoundingClientRect();
 		return rect.width > 0 || rect.height > 0;
 	});
 	if (!anyRenders) {

@@ -64,18 +64,18 @@ colorBg(document.getElementById("root"), { startL: 15, endL: 85 });
 squeezeFg(root: HTMLDivElement): void
 ```
 
-Walks `root`, finds every `div.fg`, and applies a single shared font size — the
-largest at which every foreground's content fits inside its container. Set the
-font on a `fg` and it cascades to everything inside, so the content scales as a
-whole. Call again on resize.
+Walks `root`, finds every `div.bg` that has a direct `div.fg` child, and applies
+a single shared font size — the largest at which every `fg` fits inside its `bg`
+container. Set the font on a `fg` and it cascades to everything inside, so the
+content scales as a whole. Call again on resize.
 
-Each `fg` must contain **exactly one direct child div** — the content proxy. Put
-whatever you want inside it; it sizes to its content and is measured against the
-`fg`'s content box.
+Each `bg` that contains an `fg` must have **exactly one direct `fg` child**. The
+`fg` can hold arbitrary content; it is measured as a whole against its parent
+`bg`'s content box.
 
 ```html
-<div class="fg">     <!-- container: sized by the layout -->
-  <div>              <!-- content proxy: sizes to its content -->
+<div class="bg">     <!-- container: sized by the layout -->
+  <div class="fg">   <!-- content: squeezed to fit inside bg -->
     <span>January</span>
   </div>
 </div>
@@ -87,9 +87,9 @@ squeezeFg(document.getElementById("root"));
 
 ## How `squeezeFg` fits
 
-- Measures `getBoundingClientRect()` of each content div against its `fg`'s
+- Measures `getBoundingClientRect()` of each `fg` against its parent `bg`'s
   content box (padding and borders reduce the usable space).
-- One shared font size is applied to all `fg`s; the most-constrained foreground
+- One shared font size is applied to all `fg`s; the most-constrained pair
   determines it, so the rest fit with slack.
 - An **exponential sweep** (≤16 steps) brackets the answer — it grows the font
   while everything fits and shrinks it while anything overflows, until the fit
@@ -97,7 +97,7 @@ squeezeFg(document.getElementById("root"));
 - A **binary search** refines within the bracket. The sampled font size is
   tracked with a running mean and variance (Welford); the search stops once the
   standard deviation falls below a pixel. The largest font that fit is applied.
-- An axis where the `fg` grows with its content (hugs it) never triggers a
+- An axis where the `bg` grows with its `fg` (hugs it) never triggers a
   crossing, so the fixed axis constrains the fit on its own — no configuration
   needed.
 - Font sizes are restored to their original inline values if the function throws.
@@ -108,7 +108,7 @@ squeezeFg(document.getElementById("root"));
 |---|---|---|
 | `colorBg` | No `bg` div found | `colorBg: no element with class "bg" was found.` |
 | `squeezeFg` | Root not connected | `squeezeFg requires a connected root div.` |
-| `squeezeFg` | No `fg` div found | `squeezeFg: no element with class "fg" was found.` |
-| `squeezeFg` | An `fg` lacks exactly one child div | `squeezeFg: each fg div must contain exactly one direct child div.` |
+| `squeezeFg` | No `bg` with a direct `fg` child found | `squeezeFg: no bg element with a direct fg child was found.` |
+| `squeezeFg` | A `bg` has more than one direct `fg` child | `squeezeFg: each bg div must contain exactly one direct fg child.` |
 | `squeezeFg` | No content renders | `squeezeFg requires at least one fg child with measurable content.` |
 | `squeezeFg` | Sweep cannot bracket a fit | `squeezeFg: could not bracket a fit during the sweep.` |
