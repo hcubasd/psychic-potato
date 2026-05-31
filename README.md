@@ -61,13 +61,14 @@ colorBg(document.getElementById("root"), { startL: 15, endL: 85 });
 ### `squeezeFg(root)`
 
 ```ts
-squeezeFg(root: HTMLDivElement): void
+squeezeFg(root: HTMLDivElement): number
 ```
 
 Walks `root`, finds every `div.bg` that has a direct `div.fg` child, and applies
 a single shared font size — the largest at which every `fg` fits inside its `bg`
-container. Set the font on a `fg` and it cascades to everything inside, so the
-content scales as a whole. Call again on resize.
+container. Returns that font size in pixels. Set the font on a `fg` and it
+cascades to everything inside, so the content scales as a whole. Call again on
+resize.
 
 Each `bg` that contains an `fg` must have **exactly one direct `fg` child**. The
 `fg` can hold arbitrary content; it is measured as a whole against its parent
