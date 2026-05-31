@@ -13,7 +13,7 @@ const CONVERGENCE_STD_PX = 1;
 
 type Bracket = { inside: number; outside: number };
 
-export function squeezeFg(root: HTMLDivElement): void {
+export function squeezeFg(root: HTMLDivElement): number {
 	const pairs = collectPairs(root);
 	const seed = getBodyFontSize();
 
@@ -24,6 +24,7 @@ export function squeezeFg(root: HTMLDivElement): void {
 		const { inside, outside } = sweep(pairs, seed);
 		const best = refine(pairs, inside, outside);
 		setFont(pairs, best);
+		return best;
 	} catch (err) {
 		restoreFont(pairs);
 		throw err;
