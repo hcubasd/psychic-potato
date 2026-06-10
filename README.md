@@ -54,7 +54,7 @@ Returns the number of distinct depth levels (i.e. the length of the color ramp).
 ```
 
 ```ts
-colorBg(document.getElementById("root"));                      // black → white, returns 1
+colorBg(document.getElementById("root"));                      // black → white
 colorBg(document.getElementById("root"), { from: 0.15, to: 0.85 });
 ```
 
