@@ -31,44 +31,49 @@ import { colorBg, squeezeFg } from "psychic-potato";
 ### `colorBg(root, config?)`
 
 ```ts
-colorBg(root: HTMLDivElement, config?: { startL?: number; endL?: number }): void
+colorBg(root: HTMLDivElement, config?: { from?: number; to?: number }): number
 ```
 
 Walks `root`, finds every `div.bg`, and sets each one's `backgroundColor` from a
-gray ramp keyed to its nesting depth. The outermost background layer gets
-`startL`, the innermost gets `endL`, and miniature-waffle fills the
-evenly-spaced CIE Lab grays in between. Siblings at the same depth get the same
-color. Non-`bg` divs don't count toward depth.
+gray ramp keyed to its nesting depth. The outermost background layer gets the
+`from` lightness, the innermost gets `to`, and miniature-waffle fills the
+evenly-spaced grays in between. Siblings at the same depth get the same color.
+Non-`bg` divs don't count toward depth.
 
-- `startL` — lightness of the outermost layer, `[0, 100]`, default `0`
-- `endL` — lightness of the innermost layer, `[0, 100]`, default `100`
+Returns the number of distinct depth levels (i.e. the length of the color ramp).
+
+- `from` — lightness of the outermost layer, `[0, 1]` where `0` = black and `1` = white, default `0`
+- `to` — lightness of the innermost layer, `[0, 1]`, default `1`
 
 ```html
-<div class="bg">           <!-- depth 0 → startL -->
+<div class="bg">           <!-- depth 0 → from -->
   <div class="bg">         <!-- depth 1 -->
-    <div class="bg">…</div> <!-- depth 2 → endL -->
+    <div class="bg">…</div> <!-- depth 2 → to -->
   </div>
 </div>
 ```
 
 ```ts
-colorBg(document.getElementById("root"));              // 0 → 100
-colorBg(document.getElementById("root"), { startL: 15, endL: 85 });
+colorBg(document.getElementById("root"));                      // black → white, returns 1
+colorBg(document.getElementById("root"), { from: 0.15, to: 0.85 });
 ```
 
 ---
 
-### `squeezeFg(root)`
+### `squeezeFg(root, scale?)`
 
 ```ts
-squeezeFg(root: HTMLDivElement): number
+squeezeFg(root: HTMLDivElement, scale?: number): number
 ```
 
 Walks `root`, finds every `div.bg` that has a direct `div.fg` child, and applies
 a single shared font size — the largest at which every `fg` fits inside its `bg`
-container. Returns that font size in pixels. Set the font on a `fg` and it
-cascades to everything inside, so the content scales as a whole. Call again on
-resize.
+container, multiplied by `scale`. Returns that font size in pixels. Set the font
+on a `fg` and it cascades to everything inside, so the content scales as a whole.
+Call again on resize.
+
+- `scale` — multiplier applied after the fit, `(0, 1]`, default `1`. Use values
+  below `1` to add breathing room without changing the layout constraints.
 
 Each `bg` that contains an `fg` must have **exactly one direct `fg` child**. The
 `fg` can hold arbitrary content; it is measured as a whole against its parent
@@ -83,7 +88,8 @@ Each `bg` that contains an `fg` must have **exactly one direct `fg` child**. The
 ```
 
 ```ts
-squeezeFg(document.getElementById("root"));
+squeezeFg(document.getElementById("root"));         // fits exactly
+squeezeFg(document.getElementById("root"), 0.9);    // 10% breathing room
 ```
 
 ## How `squeezeFg` fits

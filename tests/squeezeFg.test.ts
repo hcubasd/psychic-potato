@@ -136,6 +136,25 @@ describe("squeezeFg", () => {
 		expect(() => squeezeFg(pair.bg)).toThrow(/could not bracket/);
 	});
 
+	it("applies scale to reduce the fitted font size", () => {
+		const pair = createPair({ text: "January", bgWidth: 132, bgHeight: 64 });
+
+		const full = squeezeFg(pair.bg);
+		const scaled = squeezeFg(pair.bg, 0.8);
+
+		expect(scaled).toBeCloseTo(full * 0.8, 4);
+		expect(readFontSize(pair.fg)).toBeCloseTo(full * 0.8, 4);
+	});
+
+	it("scale defaults to 1 (no-op)", () => {
+		const pair = createPair({ text: "January", bgWidth: 132, bgHeight: 64 });
+
+		const withoutScale = squeezeFg(pair.bg);
+		const withScale1 = squeezeFg(pair.bg, 1);
+
+		expect(withScale1).toBeCloseTo(withoutScale, 4);
+	});
+
 	it("restores the original inline font size after a failure", () => {
 		const pair = createPair({
 			text: "Restore",

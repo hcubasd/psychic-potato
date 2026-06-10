@@ -87,17 +87,37 @@ describe("colorBg", () => {
 		expect(leaf.style.backgroundColor).toBe(expectedBg(grays[2]));
 	});
 
-	it("respects a custom startL/endL range", () => {
+	it("respects a custom from/to range", () => {
 		const root = bg();
 		const inner = bg();
 		root.append(inner);
 		document.body.append(root);
 
-		colorBg(root, { startL: 20, endL: 80 });
+		colorBg(root, { from: 0.2, to: 0.8 });
 
 		const grays = matchGrays(2, 20, 80);
 		expect(root.style.backgroundColor).toBe(expectedBg(grays[0]));
 		expect(inner.style.backgroundColor).toBe(expectedBg(grays[1]));
+	});
+
+	it("returns the number of distinct depth levels", () => {
+		const root = bg();
+		const mid = bg();
+		const leaf = bg();
+		mid.append(leaf);
+		root.append(mid);
+		document.body.append(root);
+
+		const depth = colorBg(root);
+
+		expect(depth).toBe(3);
+	});
+
+	it("returns 1 for a single bg layer", () => {
+		const root = bg();
+		document.body.append(root);
+
+		expect(colorBg(root)).toBe(1);
 	});
 
 	it("ignores non-bg divs when counting depth", () => {

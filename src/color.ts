@@ -1,20 +1,21 @@
 import { matchGrays } from "miniature-waffle";
 
 export type ColorBgConfig = {
-	startL?: number;
-	endL?: number;
+	from?: number;
+	to?: number;
 };
 
 type BgLayer = { div: HTMLDivElement; depth: number };
 
 // Nesting depth (number of bg-class ancestors) drives the color: the outermost
-// bg layer gets startL, the innermost gets endL, and miniature-waffle's
-// matchGrays fills the evenly-spaced grays in between.
+// bg layer gets `from` lightness, the innermost gets `to` lightness (both in
+// [0, 1] where 0 = black and 1 = white), and miniature-waffle's matchGrays
+// fills the evenly-spaced grays in between.
 export function colorBg(
 	root: HTMLDivElement,
 	config: ColorBgConfig = {},
-): void {
-	const { startL = 0, endL = 100 } = config;
+): number {
+	const { from = 0, to = 1 } = config;
 
 	const layers = collectBgWithDepth(root);
 	if (layers.length === 0) {
@@ -26,12 +27,15 @@ export function colorBg(
 		if (depth > maxDepth) maxDepth = depth;
 	}
 
-	const grays = matchGrays(maxDepth + 1, startL, endL);
+	const depthCount = maxDepth + 1;
+	const grays = matchGrays(depthCount, from * 100, to * 100);
 
 	for (const { div, depth } of layers) {
 		const { r, g, b } = grays[depth];
 		div.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
 	}
+
+	return depthCount;
 }
 
 function collectBgWithDepth(root: HTMLDivElement): BgLayer[] {
