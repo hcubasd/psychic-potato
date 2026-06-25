@@ -1,5 +1,6 @@
 import { colorBg, squeezeFg } from "https://esm.sh/psychic-potato";
 import { matchColors, matchGrays } from "https://esm.sh/miniature-waffle";
+import JSZip from "https://esm.sh/jszip";
 
 // Tango/xterm 16 ANSI colors in canonical order (0–15)
 const ANSI_HEX = [
@@ -91,3 +92,33 @@ grayRowBgColors.forEach((hex, i) => {
 // squeezeFg: one shared font size across all 288 cells, re-fit on resize
 squeezeFg(root);
 window.addEventListener('resize', () => squeezeFg(root));
+
+// Download: clicking any fg triggers confirm → zip of 256 1×1 PNGs
+async function downloadColors() {
+  const allColors = matchColors(256, 75)[0];
+  const zip = new JSZip();
+  const folder = zip.folder('colors');
+
+  for (const { r, g, b } of allColors) {
+    const hex = rgbToHex({ r, g, b });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    canvas.getContext('2d').fillStyle = `rgb(${r},${g},${b})`;
+    canvas.getContext('2d').fillRect(0, 0, 1, 1);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    folder.file(`${hex}.png`, blob);
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(zipBlob);
+  a.download = 'colors.zip';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+root.addEventListener('click', e => {
+  if (!e.target.classList.contains('fg')) return;
+  if (confirm('Download colors?')) downloadColors();
+});

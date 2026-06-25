@@ -45,4 +45,5 @@ html, body {
 
 .fg {
   white-space: nowrap;
+  cursor: pointer;
 }
