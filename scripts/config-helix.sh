@@ -29,3 +29,11 @@ npm install -g vscode-langservers-extracted
 
 # typescript
 npm i -g typescript-language-server @biomejs/biome
+
+# html
+npm i -g vscode-langservers-extracted
+if ! command -v superhtml; then
+	ARCH=$([[ $(uname -m) = "x86_64" ]] && echo "x86_64-linux-musl" || echo "aarch64-linux")
+	curl -L https://github.com/kristoff-it/superhtml/releases/download/v0.6.2/${ARCH}.tar.xz |
+		tar -xJf - -C /usr/local/bin/ superhtml
+fi
