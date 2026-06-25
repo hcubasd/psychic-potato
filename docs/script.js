@@ -44,9 +44,13 @@ const row4 = ANSI_HEX.slice(8).map(hex => rgbToHex(matchGrays([hexToRgb(hex)], 5
 
 const ansiColors = [...row1, ...row2, ...row3, ...row4]; // 32 hex strings
 
+// 16 evenly-spaced colors for the matchGray row backgrounds (random rotation)
+const grayRowRotation = Math.floor(Math.random() * 256);
+const grayRowBgColors = matchColors(16, 75)[grayRowRotation].map(rgbToHex);
+
 // 256-color grid: random rotation of matchColors(256, 75)
-const rotation = Math.floor(Math.random() * 256);
-const gridColors = matchColors(256, 75)[rotation].map(rgbToHex); // 256 hex strings
+const gridRotation = Math.floor(Math.random() * 256);
+const gridColors = matchColors(256, 75)[gridRotation].map(rgbToHex);
 
 // Build a cell: div.bg > div.fg with hex text colored in its own color
 function makeCell(hex) {
@@ -76,6 +80,13 @@ root.appendChild(gridSection);
 
 // colorBg: depth 0 (root) → white, depth 1 (sections) → mid-gray, depth 2 (cells) → black
 colorBg(root, { from: 1, to: 0 });
+
+// Override the 16 matchGray row cells (rows 3–4, indices 16–31 in ansiSection)
+// with evenly-spaced 256-gon colors, overwriting colorBg's black.
+const ansiCells = ansiSection.querySelectorAll(':scope > .bg');
+grayRowBgColors.forEach((hex, i) => {
+  ansiCells[16 + i].style.backgroundColor = hex;
+});
 
 // squeezeFg: one shared font size across all 288 cells, re-fit on resize
 squeezeFg(root);
